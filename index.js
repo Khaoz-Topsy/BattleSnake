@@ -43,7 +43,13 @@ app.post('/move', (request, response) => {
   const mySnakeHead = request.body.you.body[0];
   const mySnakeBody = request.body.you.body;
   const currentBoard = request.body.board;
-  const otherSnakes = request.body.board.snakes;
+  let otherSnakes = [];
+  for (const snake of request.body.board.snakes) {
+    if (request.body.you.id !== snake.id) {
+      otherSnakes.push(snake);
+    }
+  }
+
 
   let possibleMoves = [{
     x: mySnakeHead.x,
@@ -66,6 +72,7 @@ app.post('/move', (request, response) => {
     possibleMoves = possibleMovesWhereGridExists(possibleMoves, currentBoard);
     possibleMoves = possibleMovesWhereBodyDoesntExist(possibleMoves, mySnakeBody);
     possibleMoves = possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes);
+    possibleMoves = possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes);
 
 
     let nextMove = 'right';
@@ -75,7 +82,7 @@ app.post('/move', (request, response) => {
       const finder = new PF.BestFirstFinder({
         allowDiagonal: false
       });
-      const closestFoodList = findClosestFoods(mySnakeHead, currentBoard.food, otherSnakes);
+      const closestFoodList = findClosestFoodsWithoutNearbySnakes(mySnakeHead, currentBoard.food, otherSnakes);
 
       let nextStep = undefined;
       for (const closestFood of closestFoodList) {
@@ -151,6 +158,10 @@ function possibleMovesWhereOtherSnakesDontExist(possibleMoves, snakes) {
   return newPossibleMoves;
 }
 
+function possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes) {
+  return possibleMoves;
+}
+
 function setupPathfindGrid(board, mySnakeBody, otherSnakes) {
   let grid = new PF.Grid(board.width, board.height);
   for (const bodyPart of mySnakeBody) {
@@ -164,15 +175,30 @@ function setupPathfindGrid(board, mySnakeBody, otherSnakes) {
   return grid;
 }
 
-function findClosestFoods(currentSnakePosition, foods) {
+function findClosestFoodsWithoutNearbySnakes(currentSnakePosition, foods, otherSnakes) {
   let foodsUnSorted = [];
   for (const food of foods) {
     const foodDist = Math.abs(currentSnakePosition.x - food.x) + Math.abs(currentSnakePosition.y - food.y);
-    foodsUnSorted.push({
-      x: food.x,
-      y: food.y,
-      distance: foodDist
-    });
+
+    let otherSnakeNearbyFood = false;
+    for (const otherSnake of otherSnakes) {
+      for (const bodyPart of otherSnake.body) {
+        const otherSnakeXIsNearbyFood = bodyPart.x == food.x - 1 || bodyPart.x == food.x || bodyPart.x == food.x + 1;
+        const otherSnakeYIsNearbyFood = bodyPart.y == food.y - 1 || bodyPart.y == food.y || bodyPart.y == food.y + 1;
+        if (otherSnakeXIsNearbyFood && otherSnakeYIsNearbyFood) {
+          console.log('Other Snake too close to food');
+          otherSnakeNearbyFood = true;
+        }
+      }
+    }
+
+    if (!otherSnakeNearbyFood) {
+      foodsUnSorted.push({
+        x: food.x,
+        y: food.y,
+        distance: foodDist
+      });
+    }
   }
   foodsUnSorted.sort(function (a, b) { return a.distance - b.distance });
   return foodsUnSorted;
