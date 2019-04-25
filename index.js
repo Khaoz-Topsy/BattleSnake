@@ -27,7 +27,8 @@ app.post('/start', (request, response) => {
 
   // Response data
   const data = {
-    color: '#DFFF00',
+    headType: 'silly',
+    tailType: 'hook'
   }
 
   return response.json(data)
@@ -37,13 +38,85 @@ app.post('/start', (request, response) => {
 app.post('/move', (request, response) => {
   // NOTE: Do something here to generate your move
 
-  // Response data
-  const data = {
-    move: 'up', // one of: ['up','down','left','right']
+  console.log(`turn: ${request.body.turn}`);
+  const mySnakeHead = request.body.you.body[0];
+  const mySnakeBody = request.body.you.body;
+  const currentBoard = request.body.board;
+  const otherSnakes = request.body.board.snakes;
+
+  let possibleMoves = [{
+    x: mySnakeHead.x,
+    y: mySnakeHead.y - 1,
+    name: 'up'
+  }, {
+    x: mySnakeHead.x,
+    y: mySnakeHead.y + 1,
+    name: 'down'
+  }, {
+    x: mySnakeHead.x - 1,
+    y: mySnakeHead.y,
+    name: 'left'
+  }, {
+    x: mySnakeHead.x + 1,
+    y: mySnakeHead.y,
+    name: 'right'
+  }];
+  try {
+    possibleMoves = possibleMovesWhereGridExists(possibleMoves, currentBoard);
+    possibleMoves = possibleMovesWhereBodyDoesntExist(possibleMoves, mySnakeBody);
+    possibleMoves = possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes);
+  }
+  catch (err) {
+    console.error(err.message);
   }
 
-  return response.json(data)
+  let nextMove = 'right';
+  if (possibleMoves.length > 0) {
+    nextMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)].name;
+  }
+  return response.json({
+    move: nextMove
+  })
 })
+
+function possibleMovesWhereGridExists(possibleMoves, board) {
+  let newPossibleMoves = [];
+  for (const move of possibleMoves) {
+    if (move.x < 0 ||
+      move.x >= board.width ||
+      move.y < 0 ||
+      move.y >= board.height) {
+      continue;
+    }
+    newPossibleMoves.push(move)
+  }
+  return newPossibleMoves;
+}
+
+function possibleMovesWhereBodyDoesntExist(possibleMoves, snakeBody) {
+  let newPossibleMoves = [];
+  for (const move of possibleMoves) {
+    let bodyPartIsInTheWay = false;
+    for (const bodyPart of snakeBody) {
+      if (move.x == bodyPart.x && move.y == bodyPart.y) {
+        bodyPartIsInTheWay = true;
+        break;
+      }
+    }
+    if (!bodyPartIsInTheWay) {
+      newPossibleMoves.push(move);
+    }
+  }
+  return newPossibleMoves;
+}
+function possibleMovesWhereOtherSnakesDontExist(possibleMoves, snakes) {
+  let newPossibleMoves = possibleMoves;
+  for (const otherSnake of snakes) {
+    newPossibleMoves = possibleMovesWhereBodyDoesntExist(newPossibleMoves, otherSnake.body);
+  }
+  return newPossibleMoves;
+}
+
 
 app.post('/end', (request, response) => {
   // NOTE: Any cleanup when a game is complete.

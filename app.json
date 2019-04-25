@@ -1,7 +1,7 @@
 {
-  "name": "starter-snake-node",
-  "description": "NodeJS starter snake",
+  "name": "Khaoz-Snake",
+  "description": "KurtLourens attempt at BattleSnake",
   "repository": "http://github.com/battlesnakeio/starter-snake-node",
-  "logo": "http://node-js-sample.herokuapp.com/node.svg",
+  "logo": "https://kurtlourens.com/assets/images/KurtAvatar.svg",
   "keywords": []
 }
