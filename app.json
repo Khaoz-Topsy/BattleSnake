@@ -1,7 +1,7 @@
 {
-  "name": "Khaoz-Snake",
+  "name": "Khaoz-BattleSnake",
   "description": "KurtLourens attempt at BattleSnake",
-  "repository": "http://github.com/battlesnakeio/starter-snake-node",
+  "repository": "https://github.com/Khaoz-Topsy/BattleSnake",
   "logo": "https://kurtlourens.com/assets/images/KurtAvatar.svg",
   "keywords": []
 }

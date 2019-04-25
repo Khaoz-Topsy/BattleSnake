@@ -1,10 +1,10 @@
 {
-  "name": "khaoz-snake",
+  "name": "khaoz-battlesnake",
   "description": "KurtLourens attempt at BattleSnake",
   "version": "0.0.1",
-  "private": true,
-  "author": "Sendwithus",
-  "repository": "https://github.com/sendwithus/battlesnake-node",
+  "private": false,
+  "author": "Kurt Lourens",
+  "repository": "https://github.com/Khaoz-Topsy/BattleSnake",
   "licenses": [
     {
       "type": "WTFPL",
