@@ -1,7 +1,5 @@
 # My attempt and BattleSnake
-## https://play.battlesnake.io/
-
-[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+### https://play.battlesnake.io/
 
 Install the client dependencies:
 
