@@ -1,13 +1,14 @@
-const bodyParser = require('body-parser')
-const express = require('express')
-const logger = require('morgan')
-const app = express()
+const bodyParser = require('body-parser');
+const express = require('express');
+const logger = require('morgan');
+const PF = require('pathfinding');
+const app = express();
 const {
   fallbackHandler,
   notFoundHandler,
   genericErrorHandler,
   poweredByHandler
-} = require('./handlers.js')
+} = require('./handlers.js');
 
 // For deployment to Heroku, the port needs to be set using ENV, so
 // we check for the port number in process.env
@@ -65,18 +66,51 @@ app.post('/move', (request, response) => {
     possibleMoves = possibleMovesWhereGridExists(possibleMoves, currentBoard);
     possibleMoves = possibleMovesWhereBodyDoesntExist(possibleMoves, mySnakeBody);
     possibleMoves = possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes);
+
+
+    let nextMove = 'right';
+    if (possibleMoves.length > 0) {
+      const grid = setupPathfindGrid(currentBoard, mySnakeBody, otherSnakes);
+      // const gridBackup = grid.clone();
+      const finder = new PF.BestFirstFinder({
+        allowDiagonal: false
+      });
+      const closestFoodList = findClosestFoods(mySnakeHead, currentBoard.food, otherSnakes);
+
+      let nextStep = undefined;
+      for (const closestFood of closestFoodList) {
+        const path = finder.findPath(mySnakeHead.x, mySnakeHead.y, closestFood.x, closestFood.y, grid);
+        if (path.length < 2) {
+          continue;
+        }
+
+        nextStep = path[1];
+        break;
+      }
+
+      let foundOptimalNextStepInPossibleMoves = false;
+      for (const possibleMove of possibleMoves) {
+        if (nextStep && nextStep.length >= 1) {
+          if (possibleMove.x == nextStep[0] && possibleMove.y == nextStep[1]) {
+            foundOptimalNextStepInPossibleMoves = true;
+            nextMove = possibleMove.name;
+            break;
+          }
+        }
+      }
+
+      if (!foundOptimalNextStepInPossibleMoves) {
+        console.log(nextStep, 'not found in', possibleMoves);
+        nextMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)].name;
+      }
+    }
+    return response.json({
+      move: nextMove
+    })
   }
   catch (err) {
     console.error(err.message);
   }
-
-  let nextMove = 'right';
-  if (possibleMoves.length > 0) {
-    nextMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)].name;
-  }
-  return response.json({
-    move: nextMove
-  })
 })
 
 function possibleMovesWhereGridExists(possibleMoves, board) {
@@ -117,6 +151,32 @@ function possibleMovesWhereOtherSnakesDontExist(possibleMoves, snakes) {
   return newPossibleMoves;
 }
 
+function setupPathfindGrid(board, mySnakeBody, otherSnakes) {
+  let grid = new PF.Grid(board.width, board.height);
+  for (const bodyPart of mySnakeBody) {
+    grid.setWalkableAt(bodyPart.x, bodyPart.y, false);
+  }
+  for (const otherSnake of otherSnakes) {
+    for (const bodyPart of otherSnake.body) {
+      grid.setWalkableAt(bodyPart.x, bodyPart.y, false);
+    }
+  }
+  return grid;
+}
+
+function findClosestFoods(currentSnakePosition, foods) {
+  let foodsUnSorted = [];
+  for (const food of foods) {
+    const foodDist = Math.abs(currentSnakePosition.x - food.x) + Math.abs(currentSnakePosition.y - food.y);
+    foodsUnSorted.push({
+      x: food.x,
+      y: food.y,
+      distance: foodDist
+    });
+  }
+  foodsUnSorted.sort(function (a, b) { return a.distance - b.distance });
+  return foodsUnSorted;
+}
 
 app.post('/end', (request, response) => {
   // NOTE: Any cleanup when a game is complete.
