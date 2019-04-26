@@ -22,6 +22,12 @@ app.use(poweredByHandler)
 
 // --- SNAKE LOGIC GOES BELOW THIS LINE ---
 
+const scoreDeductionForOutOfBounds = 100;
+const scoreDeductionForSnakeBodyInTheWay = 100;
+const scoreDeductionForPossibleHeadOnHeadCollision = 50;
+const scoreDifferenceNeededToOverridePathFinding = 25;
+
+
 // Handle POST request to '/start'
 app.post('/start', (request, response) => {
   // NOTE: Do something here to start the game
@@ -39,7 +45,7 @@ app.post('/start', (request, response) => {
 app.post('/move', (request, response) => {
   // NOTE: Do something here to generate your move
 
-  console.log(`turn: ${request.body.turn}`);
+  console.log(`turn : ${request.body.turn} - snake: ${request.body.you.name}`);
   const mySnakeHead = request.body.you.body[0];
   const mySnakeBody = request.body.you.body;
   const currentBoard = request.body.board;
@@ -54,29 +60,32 @@ app.post('/move', (request, response) => {
   let possibleMoves = [{
     x: mySnakeHead.x,
     y: mySnakeHead.y - 1,
+    score: 100,
     name: 'up'
   }, {
     x: mySnakeHead.x,
     y: mySnakeHead.y + 1,
+    score: 100,
     name: 'down'
   }, {
     x: mySnakeHead.x - 1,
     y: mySnakeHead.y,
+    score: 100,
     name: 'left'
   }, {
     x: mySnakeHead.x + 1,
     y: mySnakeHead.y,
+    score: 100,
     name: 'right'
   }];
   try {
     possibleMoves = possibleMovesWhereGridExists(possibleMoves, currentBoard);
     possibleMoves = possibleMovesWhereBodyDoesntExist(possibleMoves, mySnakeBody);
     possibleMoves = possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes);
-    console.log('possibleMovesWithoutHeadOnHeadCollisions');
     possibleMoves = possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes);
 
-
-    let nextMove = 'right';
+    let nextMove = { name: 'right' };
+    let shouldJustDoRandomMove = true;
     if (possibleMoves.length > 0) {
       const grid = setupPathfindGrid(currentBoard, mySnakeBody, otherSnakes);
       // const gridBackup = grid.clone();
@@ -89,6 +98,7 @@ app.post('/move', (request, response) => {
       for (const closestFood of closestFoodList) {
         const path = finder.findPath(mySnakeHead.x, mySnakeHead.y, closestFood.x, closestFood.y, grid);
         if (path.length < 2) {
+          console.log('Path to nearest food is not possible');
           continue;
         }
 
@@ -96,24 +106,36 @@ app.post('/move', (request, response) => {
         break;
       }
 
-      let foundOptimalNextStepInPossibleMoves = false;
       for (const possibleMove of possibleMoves) {
         if (nextStep && nextStep.length >= 1) {
           if (possibleMove.x == nextStep[0] && possibleMove.y == nextStep[1]) {
-            foundOptimalNextStepInPossibleMoves = true;
-            nextMove = possibleMove.name;
+            nextMove = possibleMove;
+            shouldJustDoRandomMove = false;
             break;
           }
         }
       }
 
-      if (!foundOptimalNextStepInPossibleMoves) {
-        console.log(nextStep, 'not found in', possibleMoves);
-        nextMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)].name;
+      let highestScoringMove = { score: 0 };
+      for (const move of possibleMoves) {
+        if (move.score > highestScoringMove.score) {
+          highestScoringMove = move;
+        }
+      }
+
+      if (highestScoringMove.score - nextMove.score >= scoreDifferenceNeededToOverridePathFinding) {
+        console.log(`Pathfinding move is not the highest scoring move`);
+        nextMove = highestScoringMove;
+        shouldJustDoRandomMove = false;
+      }
+
+      if (shouldJustDoRandomMove) {
+        console.log('doin\' a random');
+        nextMove = GetRandomWeightedMove(possibleMoves);
       }
     }
     return response.json({
-      move: nextMove
+      move: nextMove.name
     })
   }
   catch (err) {
@@ -121,14 +143,30 @@ app.post('/move', (request, response) => {
   }
 })
 
+function GetRandomWeightedMove(possibleMoves) {
+  let totalWeight = 0;
+  for (let move of possibleMoves) {
+    totalWeight += move.score;
+  }
+
+  let randomWeight = Math.random() * totalWeight;
+  for (let move of possibleMoves) {
+    randomWeight = randomWeight - move.score;
+    if (randomWeight <= 0) {
+      return move;
+    }
+  }
+  return possibleMoves[Math.floor(Math.random() * possibleMoves.length)]
+}
+
 function possibleMovesWhereGridExists(possibleMoves, board) {
   let newPossibleMoves = [];
-  for (const move of possibleMoves) {
+  for (let move of possibleMoves) {
     if (move.x < 0 ||
       move.x >= board.width ||
       move.y < 0 ||
       move.y >= board.height) {
-      continue;
+      move.score = move.score - scoreDeductionForOutOfBounds;
     }
     newPossibleMoves.push(move)
   }
@@ -137,17 +175,19 @@ function possibleMovesWhereGridExists(possibleMoves, board) {
 
 function possibleMovesWhereBodyDoesntExist(possibleMoves, snakeBody) {
   let newPossibleMoves = [];
-  for (const move of possibleMoves) {
+  for (let move of possibleMoves) {
     let bodyPartIsInTheWay = false;
-    for (const bodyPart of snakeBody) {
+    for (let bodyIndex = 0; bodyIndex < snakeBody.length - 1; bodyIndex++) { //Ignoring tails
+      const bodyPart = snakeBody[bodyIndex];
       if (move.x == bodyPart.x && move.y == bodyPart.y) {
         bodyPartIsInTheWay = true;
         break;
       }
     }
-    if (!bodyPartIsInTheWay) {
-      newPossibleMoves.push(move);
+    if (bodyPartIsInTheWay) {
+      move.score = move.score - scoreDeductionForSnakeBodyInTheWay;
     }
+    newPossibleMoves.push(move);
   }
   return newPossibleMoves;
 }
@@ -162,26 +202,29 @@ function possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes) {
 function possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes) {
   let newPossibleMoves = [];
 
-  for (const move of possibleMoves) {
+  for (let move of possibleMoves) {
     let otherSnakeHeadNearby = false;
     for (const otherSnake of otherSnakes) {
       const otherSnakeHead = otherSnake.body[0];
       otherSnakeHeadNearby = IsOtherSnakeHeadNearMove(move, otherSnakeHead);
     }
-    if (!otherSnakeHeadNearby) {
-      newPossibleMoves.push(move);
+    if (otherSnakeHeadNearby) {
+      move.score = move.score - scoreDeductionForPossibleHeadOnHeadCollision;
     }
+    newPossibleMoves.push(move);
   }
   return newPossibleMoves;
 }
 
 function setupPathfindGrid(board, mySnakeBody, otherSnakes) {
   let grid = new PF.Grid(board.width, board.height);
-  for (const bodyPart of mySnakeBody) {
+  for (let bodyIndex = 0; bodyIndex < mySnakeBody.length - 1; bodyIndex++) { //Ignoring tails
+    const bodyPart = mySnakeBody[bodyIndex];
     grid.setWalkableAt(bodyPart.x, bodyPart.y, false);
   }
   for (const otherSnake of otherSnakes) {
-    for (const bodyPart of otherSnake.body) {
+    for (let bodyIndex = 0; bodyIndex < otherSnake.body.length - 1; bodyIndex++) { //Ignoring tails
+      const bodyPart = otherSnake.body[bodyIndex];
       grid.setWalkableAt(bodyPart.x, bodyPart.y, false);
     }
   }
