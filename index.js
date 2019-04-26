@@ -72,6 +72,7 @@ app.post('/move', (request, response) => {
     possibleMoves = possibleMovesWhereGridExists(possibleMoves, currentBoard);
     possibleMoves = possibleMovesWhereBodyDoesntExist(possibleMoves, mySnakeBody);
     possibleMoves = possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes);
+    console.log('possibleMovesWithoutHeadOnHeadCollisions');
     possibleMoves = possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes);
 
 
@@ -150,16 +151,28 @@ function possibleMovesWhereBodyDoesntExist(possibleMoves, snakeBody) {
   }
   return newPossibleMoves;
 }
-function possibleMovesWhereOtherSnakesDontExist(possibleMoves, snakes) {
+function possibleMovesWhereOtherSnakesDontExist(possibleMoves, otherSnakes) {
   let newPossibleMoves = possibleMoves;
-  for (const otherSnake of snakes) {
+  for (const otherSnake of otherSnakes) {
     newPossibleMoves = possibleMovesWhereBodyDoesntExist(newPossibleMoves, otherSnake.body);
   }
   return newPossibleMoves;
 }
 
 function possibleMovesWithoutHeadOnHeadCollisions(possibleMoves, otherSnakes) {
-  return possibleMoves;
+  let newPossibleMoves = [];
+
+  for (const move of possibleMoves) {
+    let otherSnakeHeadNearby = false;
+    for (const otherSnake of otherSnakes) {
+      const otherSnakeHead = otherSnake.body[0];
+      otherSnakeHeadNearby = IsOtherSnakeHeadNearMove(move, otherSnakeHead);
+    }
+    if (!otherSnakeHeadNearby) {
+      newPossibleMoves.push(move);
+    }
+  }
+  return newPossibleMoves;
 }
 
 function setupPathfindGrid(board, mySnakeBody, otherSnakes) {
@@ -182,17 +195,13 @@ function findClosestFoodsWithoutNearbySnakes(currentSnakePosition, foods, otherS
 
     let otherSnakeNearbyFood = false;
     for (const otherSnake of otherSnakes) {
-      for (const bodyPart of otherSnake.body) {
-        const otherSnakeXIsNearbyFood = bodyPart.x == food.x - 1 || bodyPart.x == food.x || bodyPart.x == food.x + 1;
-        const otherSnakeYIsNearbyFood = bodyPart.y == food.y - 1 || bodyPart.y == food.y || bodyPart.y == food.y + 1;
-        if (otherSnakeXIsNearbyFood && otherSnakeYIsNearbyFood) {
-          console.log('Other Snake too close to food');
-          otherSnakeNearbyFood = true;
-        }
-      }
+      const otherSnakeHead = otherSnake.body[0];
+      otherSnakeHeadNearby = IsOtherSnakeHeadNearMove(food, otherSnakeHead);
     }
 
-    if (!otherSnakeNearbyFood) {
+    if (otherSnakeNearbyFood) {
+      console.log('Other Snake too close to food');
+    } else {
       foodsUnSorted.push({
         x: food.x,
         y: food.y,
@@ -202,6 +211,16 @@ function findClosestFoodsWithoutNearbySnakes(currentSnakePosition, foods, otherS
   }
   foodsUnSorted.sort(function (a, b) { return a.distance - b.distance });
   return foodsUnSorted;
+}
+
+
+function IsOtherSnakeHeadNearMove(targetMove, otherSnakeHead) {
+  const otherSnakeIsAboveMove = otherSnakeHead.x == targetMove.x && otherSnakeHead.y == targetMove.y - 1;
+  const otherSnakeIsBelowMove = otherSnakeHead.x == targetMove.x && otherSnakeHead.y == targetMove.y + 1;
+  const otherSnakeIsLeftOfMove = otherSnakeHead.x == targetMove.x - 1 && otherSnakeHead.y == targetMove.y;
+  const otherSnakeIsRightOfMove = otherSnakeHead.x == targetMove.x + 1 && otherSnakeHead.y == targetMove.y;
+
+  return (otherSnakeIsAboveMove || otherSnakeIsBelowMove || otherSnakeIsLeftOfMove || otherSnakeIsRightOfMove);
 }
 
 app.post('/end', (request, response) => {
